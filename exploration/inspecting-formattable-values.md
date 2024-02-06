@@ -109,7 +109,7 @@ previously passed to `:noun`: `case` and `count`.
 - The structure returned as a value must encode the formatted result,
 input value, and options that were passed in.
 - Articulate the difference between a "formattable value"
-(which is the domain of the input mapping (argument mapping),
+(which is the range of the input mapping (argument mapping),
 and the result of evaluating a _literal_)
 and a "formatted value"
 (which is what a formatting function (usually) returns).
@@ -219,8 +219,8 @@ are also _annotated formattable values_.
 formatted value (and some extra information).
 
 In the current spec, a "resolved value" can be a
-nameable value, formattable value, preformatted value, or
-option value, depending on context.
+nameable value, formattable value, or preformatted value,
+depending on context.
 
 This proposal keeps the "formattable value" and "formatted value"
 types implementation-specific while defining wrapper types
@@ -251,10 +251,6 @@ type FormattedValue = /* Implementation-dependent */;
 
 interface FormattableOptionValue = {
   value: FormattableValue;
-}
-
-interface FormattedOptionValue = {
-   value: FormattedValue;
 }
 
 interface PreformattedValue = {
