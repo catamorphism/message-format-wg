@@ -1,5 +1,8 @@
 # Formatted Parts
 
+> TODO: maybe rename this to "Dataflow" or something like that?
+> "Specifying Dataflow"?
+
 Status: **Proposed**
 
 <details>
@@ -100,6 +103,21 @@ into `:adjective`, but rather, a structure that encodes that formatted result,
 along with the resolved value of `$item` and the names and values of the options
 previously passed to `:noun`: `case` and `count`.
 
+
+> TODO: more use cases:
+> * Staś wrote: "I recall a use-case at Mozilla in which we wanted to pre-define
+> some formatting options on message arguments — at the callsite, the developer
+> would pass them wrapped in an equivalent of the Preformatted value
+> - I think we could keep _formattable value_ and _preformatted value_ different,
+> since _formattable value_ is supposed to be completely implementation-specific,
+> Instead, any common formatting options that might appear on both inputs and outputs
+> should be in the _annotated formattable values_
+> (as "extra implementation-specific fields").
+> However, it might be helpful to see a use case.
+
+> TODO: A use case that shows why _formatted values_ and _formatted parts_ should
+> be considered different (if they are different)?
+
 ## Requirements
 
 - Define the structure passed in as an argument to a custom formatting function.
@@ -148,6 +166,10 @@ Which is not a problem, since what we're defining is the _value_ type
 and not the _thunk_ (suspension) type. This is orthogonal to the
 question of eager vs. lazy evaluation.
 
+> TODO: perhaps write all examples (here and in spec) assuming eager evaluation
+> ("keep the reader's focus on the preferred data flow) and address lazy
+> evaluation in an appendix
+
 ### The function registry
 
 Function registry contains specifications of the correct "input",
@@ -172,6 +194,8 @@ https://github.com/unicode-org/message-format-wg/blob/main/spec/formatting.md#fu
 ## Proposed Design
 
 ### Taxonomy
+
+> TODO: add a diagram
 
 This proposal introduces several new concepts
 and eliminates the term "resolved value" from the spec.
@@ -199,6 +223,11 @@ or a sequence of "parts"; the implementation-specific "parts"
 are expected to have the implementation-specific
 _formatted value_ type.
 
+> TODO: _Is_ a _formatted value_ the same as one of the "parts"
+> in "format to parts"?
+> As Staś asked: "is there information on _preformatted values_
+> that should not make it outside the callsite?"
+
 * _Fallback value_: A value representing a formatting error.
 
 * _Annotated formattable value_: Encapsulates any
@@ -212,11 +241,15 @@ including:
 The values of named options passed to formatting functions
 are also _annotated formattable values_.
 
+> TODO: Staś suggested calling this an "operand value" instead
+
 * _Markup value_: The result of formatting a markup item
 (disjoint from _annotated formattable values_).
 
 * _Preformatted value_: A formattable value paired with a
 formatted value (and some extra information).
+
+> TODO: Staś suggested calling this an "annotated value" instead
 
 In the current spec, a "resolved value" can be a
 nameable value, formattable value, or preformatted value,
@@ -291,6 +324,8 @@ Same code as Example 1:
 Assuming eager evaluation,
 the right-hand side of `$a` is evaluated to the following _annotated formattable value_:
 
+> TODO: possibly move `source-text` out of examples and into an appendix?
+
 ```
 { source-text: '{1 :number minIntegerDigits=3}',
   preformatted-value: {
@@ -354,6 +389,8 @@ to the string 'red',
 the name `item` is bound in the runtime environment
 to a _nameable value_ equivalent to
 the following _annotated formattable value_:
+
+> TODO: see suggestion 3 from Staś
 
 ```
 { source-text: '{$item :noun case=accusative count=1}',
@@ -486,6 +523,16 @@ a single `options` list might be more convenient.
 However, it's unclear how to use a flat representation if the nested values
 are produced by different formatters that take different options.
 
+> TODO: Staś suggested giving this more thought, and I agree
+> (it's probably better for custom-function implementors to have a single
+> flat structure to deal with; nesting might not be useful most of the time.)
+> However as I wrote above, what if different options with the same names exist,
+> which have different meanings to different formatters? (Perhaps try to come
+> up with a use case that shows this)
+
+> TODO: write up in more detail what it would look like to "flatten" out
+> _annotated formattable values_
+
 ## Incidental notes
 
 The spec currently says:
@@ -495,3 +542,10 @@ The spec currently says:
 
 With the right representation for _annotated formattable values_,
 will functions need to access the _formatting context_ at all?
+
+> TODO: Staś noted: "implementations may want to memoize Intl/ICU
+> formatting objects for future use."
+> (Locales can be passed in as explicit arguments to custom
+> functions, though I guess that's only in the ICU4J / ICU4C
+> class definitions and not required in the spec)
+

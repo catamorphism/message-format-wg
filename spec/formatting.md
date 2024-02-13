@@ -221,6 +221,8 @@ A _markup_ is resolved to a _markup value_, which is then used in the pattern's 
 
 The forms that _nameable values_ and _formattable values_ take are implementation-dependent.
 
+> TODO: possibly drop `source-text` from the examples
+
 > For example, the _annotated formattable value_ of the _expression_
 > `{|0.40| :number style=percent}`
 > could be an object such as
