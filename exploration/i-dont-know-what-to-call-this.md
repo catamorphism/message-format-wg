@@ -1,4 +1,4 @@
-# I don't know what to call this -- function registry guidance?
+ I don't know what to call this -- function registry guidance?
 
 Status: **Proposed**
 
@@ -18,19 +18,75 @@ Status: **Proposed**
 
 _What is this proposal trying to achieve?_
 
-* Define the meaning of `.local` (and `.input`)
-  * what is the "value" that is bound to a variable?
-  * this is not just an internal implementation detail,
-    but affects observable behavior
-* Define the types that custom functions manipulate
-* Define the semantics of composability (disambiguate the ambiguity per Elango's "ambiguity 1" and "ambiguity 2"
-* Taxonomize functions (formatters, selectors, transformers?)
+* Define the requirements for a "resolved value"
 
-## Background: the spec as it is
+The spec currently leaves the term "resolved value"
+undefined.
+At the same time, the spec implicitly constrains
+the form of a resolved value
+through the operations on resolved values that it defines.
+Implementing the spec requires inferring those constraints.
+The primary objective is to make those constraints explicit
+so that this inference only has to be done once.
+This objective implies several subsidiary goals.
 
-ambiguity about resolved values
+* Define the meaning of `.local` (and `.input`).
 
-"resolved value" must be elaborated on, b/c it affects observable behavior
+> In a declaration, the resolved value of the expression is bound to a variable, which is available for use by later expressions
+(["Expression and Markup Resolution"](https://github.com/unicode-org/message-format-wg/blob/main/spec/formatting.md#expression-and-markup-resolution))
+
+The term "resolved value" is left undefined, but its meaning affects the observable behavior of the formatter.
+
+* Define the types that custom functions manipulate.
+
+> Call the function implementation with the following arguments... If the expression includes an operand, its resolved value.
+> ....If the call succeeds, resolve the value of the expression as the result of that function call.
+(["Function Resolution"](https://github.com/unicode-org/message-format-wg/blob/main/spec/formatting.md#function-resolution) )
+
+The same term, "resolved value", is used to describe the values that functions consume and produce.
+An implementation that supports custom functions needs to define concrete types
+(whose details depend on the underlying programming language of the implementation)
+that capture all the details of "resolved values".
+Implementers would benefit from guidance
+on how to map the MessageFormat concept of a "resolved value"
+onto a concrete type.
+
+* Define the semantics of composability
+
+A function can consume a value produced by another function,
+since the language provides `.local` declarations.
+The meaning of this composition depends on the definition
+of "resolved value".
+Even with a precise definition of "resolved value",
+an additional question is raised of what the contract
+with custom functions needs to be
+in order to conform with the semantics of MessageFormat.
+Disambiguating the composability question
+affects observable behavior.
+
+* Provide useful names for different kinds of functions
+
+Currently, a given MessageFormat function can be thought of a
+formatter, a selector, or both.
+Because the implementations for formatters and selectors
+naturally have different type signatures
+(a formatter consumes and produces a resolved value,
+while a selector produces a list of keys),
+a single MessageFormat function that supports both formatting and selection
+is expected to symbolize multiple implementations.
+It may be useful to think of some functions as "transformers"
+that consume and produce resolved values,
+and others as "formatters" that consume a resolved value
+and produce a formatted value.
+Defining these terms is another objective.
+
+## Background
+
+The meaning of "resolved value" affects the observable behavior of formatting,
+and the desired semantics of MessageFormat,
+particularly with respect to function composition,
+in turn impose requirements
+on the expressivity of a "resolved value".
 
 Comments about resolved values, from [intro](https://github.com/unicode-org/message-format-wg/blob/main/spec/formatting.md):
 
@@ -41,62 +97,312 @@ What "everything required" means depends on the semantics of formatting.
 And from the ["Expression and Markup Resolution"](https://github.com/unicode-org/message-format-wg/blob/main/spec/formatting.md#expression-and-markup-resolution) section:
 > Since a variable can be referenced in different ways later, implementations SHOULD NOT immediately fully format the value for output.
 
+Is there a distinction between a "resolved value"
+and a "fully formatted" resolved value?
+This text suggests that there is.
+Again, the distinction affects observable behavior.
 
-## Background: concepts
-
+### Motivating example
 
 TODO: incorporate comments/examples from https://github.com/unicode-org/message-format-wg/pull/686
 
 _What context is helpful to understand this proposal?_
 
-### Type signatures: formatters, selectors
-
-(partially based on feedback from Markus Scherer)
-
-In MessageFormat 1, conceptually a formatter had the type:
+Example: same or different?
 
 ```
-Object -> FormattedValue
+.local $n = {|1.00123|}
+.local $x = {$n: number maxFrac=2}
+.local $y = {$n: number maxFrac=3}
+{{$x} {$y}}
 ```
 
-(Java), or
+Are `$x` and `$y` the same or different?
+1. Different because the result of formatting the message to a string
+is "1.00 1.001", not "1.00 1.00" or "1.001 1.001".
+2. Different because named values include the options
+in any expressions that were evaluated in order to create the value.
+3. The same when passed into functions,
+because the underlying value, `$n`, is the same and the previous options are
+not passed into functions; but different when formatted in a pattern.
+
+TODO: This might need more context to make sense
+
+### Custom and built-in functions
+
+An implementation that supports custom functions
+would be expected to define an interface between the message formatter
+and function implementations.
+An implementation is free to choose whether to use the same interface
+for calling built-in functions,
+or to build the implementations of those functions
+directly into the message formatter.
+
+For that reason, this document refers to custom functions
+when discussing the function interface.
+However, in some implementations, the same questions arise
+for built-in functions.
+
+### Semantics vs. implementation types
+
+An implementation is free to use any types
+and set of operations for coercing between types
+as long as it preserves the observable behavior
+of a message.
+
+To choose such a set of types, it's necessary
+to understand the constraints on a "resolved value".
+
+### Semantics: named values
+
+In the spec, the "value bound to a variable"
+when processing a `.local` (or `.input`) declaration
+is a "resolved value",
+an undefined term.
+
+A "resolved value", in the spec,
+is also the operand of a function.
+
+We want to understand whether the same
+structure is actually used for both.
+
+_The following is drawn from comments by Mark Davis._
+
+Example A1:
+```
+    .local $n = {|1|}
+    .local $x = {$n :number maxFrac=2}
+```
+
+The formatter processes the right-hand side
+of the `.local` declaration of `$x`
+and binds it to a value (a "resolved value",
+per the spec.)
+
+The use of "resolved value" implies that
+the following two concepts:
+* "the value of `$x` in the formatter's local environment"
+and
+* "the meaning of `$x` as an operand to a function"
+denote the same entity.
+
+So what is that entity? There are at least two interpretations:
+Interpretation 1: The meaning of `$x` is
+a value that effectively represents the string `"1.00"`.
+
+Consider another example:
+
+Example A2:
+```
+    .local $n1 = {|1|}
+    .local $n2 = {|1.00123|}
+    .local $x1 = {$n1 :number maxFrac=2}
+    .local $x2 = {$n2 :number maxFrac=2}
+```
+
+Under interpretation 1, `$x1` and `$x2` are
+interchangeable in any further piece of the message
+that follows this fragment.
+No processing can distinguish the resolved values
+of the two variables.
+
+Interpretation 2: The meaning of `$x` is
+a value that represents
+a formatted string `"1.00"`,
+bundled with information about the source value (`"1"`),
+formatter name, and formatter options.
+If the resolved value of `$x`, V, is passed to another function,
+that function can distinguish V from another value V1
+that represents the same formatted string,
+with different options.
+
+The choice of interpretation affects the meaning of
+function composition,
+since it affects which values a function implementation
+can distinguish from each other.
+
+The two interpretations affect behavior
+only if `$x` is passed to another function;
+if it's only used unannotated in a pattern,
+then the two interpretations imply the same result.
+
+In other words, in example A2,
+functions can distinguish the resolved value of `$x1`
+from the resolved value of `$x2`.
+
+An implication of interpretation 2 is that the meaning
+of `$x2` (in example A2) depends on context.
+When it appears in a pattern, with no annotation,
+it is interchangeable with `$x1`.
+When it appears in a function annotation,
+it is distinguishable from `$x1`.
+If every expression has a single "resolved value"
+that is determined in a context-free way,
+that rules out interpretation 2.
+
+> TODO: I think this is important, maybe put it earlier
+
+Another way to express interpretation 2 is to
+express the semantics of an unannotated variable
+in a pattern in this way:
+
+`{{$x}}` is implicitly
+`{{$x :format}}`
+
+where `:format` extracts the string (or "formatted parts")
+representation of `$x`'s resolved value
+and discards everything else, which is not needed for
+producing the final formatting result.
+If this implicit processing
+(an implicit type coercion?)
+is introduced into the spec,
+the meaning of variable names
+is once again context-independent.
+
+Also consider:
+
+Example A3:
 
 ```
-Formattable -> FormattedValue
+    .local $n1 = {|1.00123|}
+    .local $n2 = {|1.00|}
+    .local $x0 = {$n2 :number maxFrac=2}
+    .local $x = {$n1 :number maxFrac=2}
+    .local $y = {$x :number maxFrac=5}
+    {{$x} {$y}}
 ```
 
-(C++)
+Interpretation 1: The result of formatting this message to a string
+is `"1.00 1.00000"`.
+`$x` is bound to a resolved value denoting a formatted string `1.00`,
+with no metadata.
+The second call to `:number`, with `$x`'s resolved value as its operand,
+cannot distinguish the resolved value of `$x`
+from the resolved value of `$x0`.
+Therefore, its result is the same as if it was passed
+the resolved value of `$x0`.
 
-Where a `FormattedValue` is a string with metadata.
+Interpretation 2: The result of formatting this message to a string
+is `"1.00 1.00123"`.
+Under this interpretation, the second call to `:number`
+can distinguish the resolved value
+of `$x` from the resolved value of `$x0`.
+The original string that `$x` was constructed from
+is part of the resolved value,
+and can be accessed to reformat that string
+with more digits of precision.
 
-In MessageFormat 2, the language of "formatted values" is richer.
-Formatters can return arbitrary objects, so
-the MessageFormat 2 equivalent of a `FormattedValue`
-contains something with more structure.
+When it comes to example A3,
+either interpretation might be surprising to some users.
+
+Under interpretation 2, some users might be surprised that `$y`
+has more precision than `$x`.
+If their mental model is that `$y` can only depend
+on the result of formatting the right-hand side
+of the declaration of `$x`,
+then the intuition is that the extra digits are "lost"
+upon assigning a value to `$x`.
+
+To understand why interpretation 1 might be surprising
+to other users, consider an analogy.
+
+#### Spreadsheet analogy
+
+_This idea is from Mark Davis._
+
+Interpretation 2 treats variables analogously to cells in a spreadsheet.
+In a cell of a spreadsheet, referring to a value by name
+creates a reference,
+rather than copying its value.
+Unlike cells in spreadsheets, variables in MessageFormat are immutable.
+However, like cells in spreadsheets, the definitions of variables
+can refer to other variables that are in scope.
+
+Consider a tabular rendering of example A3 (with a pseudo-spreadsheet syntax)
+(this would be the "formula" view):
+
+|    | A       |     B   | C                |  D              |   E              |
+|----|---------|---------|------------------|-----------------|------------------|
+| 1  | 1.00123 | 1.00    | (=B1, maxFrac=2) | =(A1, maxFrac=2 | =(D1, maxFrac=5) |
+
+with the following mappings between cells and variables:
+
+| A1 | n1 |
+|----|----|
+| B1 | n2 |
+|----|----|
+| C1 | x0 |
+|----|----|
+| D1 | x  |
+|----|----|
+| E1 | y  |
+
+And the "output" view
+
+|    | A       |     B   | C                |  D              |   E              |
+|----|---------|---------|------------------|-----------------|------------------|
+1    | 1.00123 | 1.00    | 1.00             | 1.00            | 1.00123          |
+
+In E1, the reference to D1 is a reference to the _value_ of A1,
+with added formatting options that can be extended or overridden.
+
+This is consistent with interpretation 2, in which `$x` is bound to a structure
+that contains the value of `$n1`.
+(This could be implemented by copying, since MessageFormat variables are immutable.)
+
+### Semantics: return values for functions
+
+Turning to the question of what a function returns,
+this at first glance is the same question as
+"what is a named value",
+as both are "resolved values" according to the spec.
+But both interpretation 1 and interpretation 2 complicate that.
+
+Alternative 1: A function returns a "formatted value".
+This matches interpretation 1, where formatted values
+are bound to names.
+
+Alternative 2: A function returns a composite value
+that conceptually pairs a base value (possibly the
+operand of the function, but possibly not; see Example B1)
+with options.
+This matches interpretation 2.
+If we preserve the single usage of "resolved value"
+in the spec, this implies that the (base value, options)
+representation applies to all resolved values,
+not just those returned by functions.
+
+For more details, see the "model implementations" section.
+
+## Use-Cases
+
+_Includes examples contributed by Markus Scherer and Elango Cheran_
 
 ### Composition
 
 The presence of local variable declarations
 allows function composition.
-Although the following is _not_ a syntactically valid
+
+The following is _not_ a syntactically valid
 MessageFormat 2 message:
 
 ```
-{{{|1| :number} :func}}
+{{{|1| :number} :number}}
 ```
 
-(supposing that `:func` is defined as a custom function)
+No nesting of function annotations is allowed.
 
-by substitution,
+However, by substitution,
 one can write an observationally equivalent message:
 
 ```
 .local $x = {|1| :number}
-{{$x :func}}
+{{$x :number}}
 ```
 
 This implies that the composition of two functions
-(conceptually, `func . number`) has to have a meaning,
+(conceptually, `number . number` in this case)
+has to have a meaning,
 since it can be expressed syntactically
 (albeit indirectly with every intermediate result named).
 
@@ -105,341 +411,136 @@ of functions has to make sense if composed.
 Functions are allowed to signal errors
 and return values that indicate that an error occurred.
 
-### What is a named value?
+Where composition is meaningful,
+its meaning depends on the choice of interpretations
+as outlined in the "Semantics: named values" section,
+because how functions compose depends on what they return
+and what they can accept as arguments.
+In turn, what they can accept as arguments
+depends on what a variable name denotes.
 
-_based on email from Mark Davis_
+### Options
 
-```
-    .local $n = {|1|}
-    .local $x = {$n :number maxFrac=2}
-```
+In the previous examples, options are only overridden in
+subsequent calls.
+A question also arises of how to combine different options.
 
-What is `$x`?
-Is it:
-* something representing the string `"1.00"`,
-with no means to recover the string `"1"`?
-* or: a formatted result `"1.00"`,
-paired with information about the source value (`"1"`),
-formatter name, and options,
-so that the meaning of `$x` is `"1.00"` if it's used
-unannotated in a pattern,
-or the "annotated result" if it's passed in to
-another function?
-
-In other words:
-```
-    .local $n = {|1|}
-    .local $x = {$n :number maxFrac=2}
-    .local $y = {$x :number macFrac=5}
-    {{$x}}
-```
-
-`$x` has the same meaning in the RHS of the `.local`
-where it's referenced,
-and in the pattern (this is the no-composability approach)
-
-or
-
-`$x` has different meanings in those two contexts
-(the composability approach)
-
-Another way to say this is:
-
-`{{$x}}` is implicitly
-`{{$x :format}}`
-
-where `:format` "forces" the complex value of `$x`
-into either a string or "part" representation
-(discarding everything not needed to produce the
-final result.)
-
-That is: introducing some implicit type coercions.
-
-TODO: "spreadsheet" analogy
-
-_based on email from Elango Cheran_
+Example A4:
 
 ```
-Ambiguity 1: Do we think that a .local declaration is a binding to a function return value, or is it a binding of the [merging of] arguments/options to that function's invocation?
-
-    .local $x = {$num :number maxFrac=2}
-    .local $y = {$x :number maxFrac=5}
-
-Should $y represent 0.33000 or 0.33333?
-
-No matter how we answer that question, we can't avoid the existence of ambiguity overall in the syntax once we're confronted with the next scenario...:
-(composability between two functions)
-```
-
-And then:
-
-```
-Ambiguity 2: How do we interpret the scenario where we pass one .local declaration as an argument to another?
-
-    .local $age = {$person :getAge}
-    .local $y = {$age :duration skeleton=yM}
-
-
-The above 2 examples show that the `.local` keyword is being described in ways that simultaneously imply 2 different meanings -- that's our ambiguity. . Those 2 meanings put our collective intentions & intuitions at odds with each other. 
-```
-
-TODO: I'm not sure why they are at odds
-maybe:
-It wouldn't make sense for the `:duration` function to "look at the underlying value", because it has the wrong type.
-(A Person object can't be formatted as a duration.)
-So `$age` has to be bound to a formatted number;
-at least from the perspective of `:duration`, options/base value should be ignored.
-This forces the answer to Ambiguity 1 to be that `$y` is `0.33000`.
-
-_based on subsequent email from Mark_
-
-```
-I did not state it as "Should $y represent 0.33000 or 0.33333?" because y represents neither one. It represents a value plus a set of options; it is not — and cannot be — a naked value, because the options represent formatting or selection behavioral changes that generally cannot be represented by a change in a simple internal data-type value. In other words, $y is not a number.  The way to think of it is that a function like :number produces a composite value specific to that function, which we can think of as a [numberDatatype, numberOptions] pair.
-
-The options affect how $y formats and selects, and how it inherits.
-
-So, what you should have written is:
-
-"Should $y be formatted as 0.33000 or 0.33333?"
-
-Also, the presumption is that you have an implicit 
-input $num = 0.33333
-
-There are many similar examples:
-
-    input $num = 98765
-    .local $x = {$num :number maxSig=3}
-    .local $y = {$x :number maxSig=5}
-
-"Should $y be formatted as 99000 or 98765?"
-
-    input $num = 98765
-    .local $x = {$num :number numberSystem=arab}
-    .local $y = {$x :number numberSystem=latn}
-
-"Should $y be formatted as ٩٨٧٦٥ or 98765?"
-
-    input $num = 98765
-    .local $x = {$num :number signDisplay=always}
-    .local $y = {$x :number signDisplay=auto}
-
-"Should $y be formatted as +98765 or 98765?"
-
-If you are able to override inherited options, that means that you are implicitly preserving the original value.
-
-so if I apply a :number function plus numberOptions2 to [numberDatatype1, numberOptions1], then for inheritance to work well, your result is a [numberDatatype1, combine(numberOptions1, numberOptions2)] pair.
-
-I don't think the issue is that .local means two different things, but rather what our expectations are for what gets carried along...
-
-When we have two different functions, what we are doing is applying (say) a :datetime function to [numberDatatype1, numberOptions1]. We can't mean that the date function will pick up the formatted version of that pair (eg ٩٨٧٦٥). And we can't presume that the numberOptions will mean anything to the :date function (or worst case, they have the same names, but different option values, or mean something different), so the safest thing is to disregard numberOptions1.`
-```
-
-More on "what's the value?" from Mark:
-
-```
-I have no issue whatsoever with treating the results of a function as a value. The question is what that value is. My view is that the value contains enough information to format, select, and pass on to another function. It cannot be just a raw double, for example. Nor can it be a formatted string (that cannot do plural selection properly, and would require any later function in a composition to be able to parse the formatted form; really ugly). That's why I think the easiest model is a {baseValue, options}. And for all the functions we have in the tech preview standard registry, it is easy to have function1(function1(X, options1), options2) be {value=X, merge(options1, options2)}.
-
-It gets more interesting when we want to compose different functions, such as personName(date(X, dateOptions), personNameOptions). I think that in some cases (like that one) it won't make sense, and in others the relation between the functions could be defined (by those functions), so that date(number(X, numberOptions), dateOptions) could be defined (for example) to be interpreted as the "value" of the number as seconds since Jan 1, 1970 Z 0:00:00, and toss away (?) the numberOptions that are now irrelevant and cannot be applied to dates. The question would then be whether the date function would be defined to take the number value with (say) maxSignificantFractions=3 applied or not, but we don't have to worry about that right now.
-```
-
-## Background: examples
-
-_Examples from Markus Scherer and Elango Cheran_
-
-### Example: overriding options
-
-In MessageFormat, composition lends itself to multiple interpretations.
-
-```
-    .local $x = {$num :number maxFrac=2}
+    .local $x = {|1| :number minInt=3}
     .local $y = {$x :number maxFrac=5}
     {{$x} {$y}}
 ```
 
-If the external input value of `$num` is "0.33333",
-what should this message format to?
+If Interpretation 2 is adopted, then
+this example is equivalent to:
 
-1. `0.33 0.33333`
-2. `0.33 0.33`
-
-If our model of function composition is as follows:
-1. Evaluate `$num` to a value and pass it to the `:number` function,
-   along with named options `{"maxFrac": "2"}`
-2. Bind `$x` to the result, which is an object `X`
-   encapsulating the following fields:
-     * The source value, `"0.33333"`
-     * The fully-evaluated options, `{"maxFrac": "2"}`
-     * The formatted result, a `FormattedNumber` object
-       representing the string `"0.33"`
-3. Evaluate `$y` to a value, which is `X`,
-   and pass it to the `:number` function,
-   along with named options `{"maxFrac": "5"}`
-4. Bind `$y` to the result, which is an object `Y`
-   encapsulating the following fields:
-     * The source value, `"0.33333"` (same as `X`'s source value)
-     * The fully-evaluated options, `{"maxFrac": "5"}`
-       (note: the original `maxFrac` option value has been deleted)
-     * The formatted result, a `FormattedNumber` object
-       representing the string `"0.33333"`
-
-then the formatted result is option (1).
-
-If on the other hand our model is:
-1. Evaluate `$num` to a value and pass it to the `:number` function,
-   along with named options `{"maxFrac": "2"}`
-2. Bind `$x` to the result, which is:
-     * The formatted result F, a `FormattedNumber` object
-       representing the string `"0.33"`
-3. Evaluate `$y` to a value, which is F,
-   and pass it to the `:number` function,
-   along with named options `{"maxFrac": "5"}`
-4. Inside the `:number` function, check the type
-   of the input, notice that it is already a
-   `FormattedNumber`, and return it as-is
-5. Bind `$y` to the result, which is F.
-
-then the formatted result is option (2).
-
-In terms of implementation, the result depends on
-what the nature is of the value that is bound to
-a local variable in the environment used in evaluation
-within the message formatter.
-
-The value could be a simple "formatted value" as in the second model,
-and analogously to MessageFormat 1.
-
-Or it could be a more structured value that captures
-both the "formatted value", and everything that was used to construct it,
-as in the first model.
-
-The third option...
-TODO: summarize this comment from Markus
-```
-More precisely, since we supposedly operate on (value-object, string-with-meta) pairs, I would expect something like this:
-
-    $num = 0.33333333333 turns into ({type=double 0.33333333333}, none) input to the first function
-    The first function ignores the string field, formats the double, and outputs $x = ({type=FixedDecimal 0.33}, "0.33")
-    The second function gets that, ignores the string field, formats the FixedDecimal, and outputs $y = ({type=FixedDecimal 0.33000}, "0.33000")
-
-With "FixedDecimal" I mean the ICU-internal, ICU4X-public representation of a decimal number with a defined set of digits before and after the decimal point. Rounding/truncation/padding applied. Somewhat similar to Java BigDecimal.
-```
-
-Although it's a different evaluation model, the third option is observably the same as the second one.
-
-orthogonal choices:
-* "string" named values vs. "structured" name values
-* "looking back" for the original value, vs. returning a different "source value"
-
-the choice of internal value influences the result!
-(Or put differently, the desired result constrains the choice of internal value.)
-
-Currently (2024-02-27), the spec leaves the behavior implementation-dependent.
-
-Markus's words: "the expectation that the second function operates on the output of the first".
-
-I don't know that it's meaningful to refer to "the expectation",
-but the spec should specify the behavior
-so that it's clear what the expectation is: to do what the spec says.
-
-but it's a useful framing:
-* "the second function operates on the output of the first"
-vs.
-* "the second function operates on the input of the first, plus 'hints' supplied by the first"
-
-TODO: another option is `0.33000`
-
-### Example: extracting a field
-
-TODO: summarize this
+Example A5:
 
 ```
-Another example: A function that takes a Person object and extracts/computes the person's age.
+    .local $x = {|1| :number maxFrac=5 minInt=3}
+    {{$x} {$x}}
+```
 
+In compositions of calls to the same function,
+it might make intuitive sense to union together
+the option sets, letting the outermost enclosing
+call take precedence if the same option is specified
+multiple times.
+
+It's less obvious what to do with compositions of
+calls to different functions, which may have different
+option sets.
+
+How options "override" each other is also not straightforward.
+Perhaps some do, others don't, and the details are
+specific to each function.
+
+Example A6:
+Should $y be formatted as ٩٨٧٦٥ or 98765?
+
+```
+    input $num = 98765
+    .local $x = {$num :number numberSystem=arab}
+    .local $y = {$x :number numberSystem=latn}
+```
+
+Example A7:
+Should $y be formatted as +98765 or 98765?
+```
+
+
+    input $num = 98765
+    .local $x = {$num :number signDisplay=always}
+    .local $y = {$x :number signDisplay=auto}
+```
+
+While some use cases don't work well
+(or at least work surprisingly)
+if options are not encoded in named values,
+defining what it means to compose options
+is not straightforward.
+
+
+### Computation vs. applying formatting
+
+Example B1:
+```
     .local $age = {$person :getAge}
     .local $y = {$age :duration skeleton=yM}
     .local $z = {$y :uppercase}
-
-I expect
-
-    Input: $person --> pair ({type=Person Markus Scherer 178cm 19690408}, none)
-    The getAge function takes this pair (asserting that the value is of type Person), and computes the age as now-birthday
-    Let's say it returns $age = ({type=duration 54y10mo}, none)
-    The duration function takes this $age and formats it; outputs something like $y = ({type=duration 54y10mo}, "54 Jahre und 10 Monate")
-    The uppercase function takes $y, ignores the value object, and formats=uppercases the string, possibly preserving metadata: $z = ({type=string [same as second field]}, "54 JAHRE UND 10 MONATE")
-
-Note:
-
-    Functions need to be able to accept a pair that has no string-with-meta -- since that's often the real input.
-    Functions need to be able to return a value object without string-with-meta. (getAge)
-    Functions may ignore the input value object. (uppercase)
-    Functions may return a pair with a value object of a different type than the input pair's value object.
-    Even if it's the same type, the value may differ. (e.g., number taking & returning a FixedDecimal)
-
-The function registry needs to be explicit for each function about what acceptable inputs are (including types of value objects), what the outputs are (including value type), in addition to what happens in between. Otherwise, implementations will handle the details wildly differently, and interoperability suffers.
 ```
 
-In short: this isn't about preserving options, but rather "what is the internal representation"; types; and which functions compose with each other
+Although there is also a pipeline of functions
+(conceptually, `uppercase . duration . getAge`),
+the formatted value returned by `:getAge` is _not_
+just "the argument with formatting options applied",
+but rather, a component of the argument.
+Other functions can be imagined that do more general
+computation on arguments.
 
-Mark's comment on this:
-"Now, we could definitely add mutating options, and we could add ‘extracting’ options. But I think we need to be very clear which are which. For example, we could have functions that take one datatype and extract a part of the input, as in your example of plucking a timestamp (birth date, I presume) from an input object representing Person information.
+It would not be correct to say that
+`:uppercase` converts a person to uppercase,
+nor would it be correct to say that `:uppercase`
+converts a number to uppercase.
 
-i.e. explicitly declaring what a function does / what options mean
+This example only makes sense if `:uppercase`
+operates on the "formatted result" of `$y`.
 
-subsequent email from Mark:
+This suggests a representation for named values
+that allows functions to choose whether to
+inspect the "formatted result", the "input value" and options,
+or both.
 
-```
-What we really have also hand-waved is how to function type X can extract some useful — and expected — value from function type Y
+This is compatible with interpretation 2.
 
-Suppose we have a PersonName datatype input passed to a message. (Cf. https://www.unicode.org/reports/tr35/tr35-personNames.html#person-name-attributes)
-
-.input {$name :u:personname length=long formality=informal}
-
-Then we write:
-
-.local $date = {$name :u:datetime skeleton=MMMyy}
-
-What to do about the value? I think the best that we could do is to specify in the registry which function's variables a given other function can read. And where it doesn't make any sense, it is simply an error. We could conceivably do the same for another function's options, though that starts to get complicated. I don't think a string binding helps with communcation, not unless — again — the second function understands the details of the first's.
-
-```
-
-(n.b. he's using "variables" in the weird way here)
-
-### Example: offset
-
-Mark (not sure where this came from):
+This suggests that a type system for functions
+(at least, an optional type system where
+typechecking would be a lint pass)
+might be useful:
 
 ```
-BTW, I did implement offset=x in my mockup, as a test. MockMessageFormat.java
-
-It turned out to be fairly easy. The original value needs to be retained for selecting literals (0, 1, ...), while I added an offsetted value for formatting and for selecting plural or ordinal categories. For composition, one would have to make a choice of which value to pass on to a successive function, although in this instance I think such composition would be of limited use in practice (and could be dangerous). Example:
-
-match {$count :number :offset=1}{$bookTitle}
-0 {{You have no books}}
-1 {{You have {$bookTitle}}}
-2 {{You have {$bookTitle} and one other book}}
-* {{You have  {$bookTitle} and {$count} other books}}
-
-When we format $count in the * line, it clearly needs to use the offsetValue. So far, so good. That means if you want to do something special, you need to have keep another variable
-
-.locale $countOther {$count : number}
-match {$countOther :number :offset=1}{$bookTitle}
-0 {{You have no books}}
-1 {{You have {$count} book, {$bookTitle}}}
-2 {{You have {$bookTitle} and one other book; for a total of {$count} books}}
-* {{You have {$bookTitle} and {$countOther} other books; for a total of {$count} books}}
-
-We really want to steer users away from the danger of changing the format in the submessage to be different than the selection.
-
-match {$count :number minFractionDigits=0}
-one {{The library has an average of {$count minFractionDigits=1} book per person}}
-* {{The library has an average of {$count} books per person}}
-
-That can result in the malformed message (for English, but similar cases happen in other languages): 
-
-The library has an average of 1.0 book per person
+getAge : Person -> Number
+duration : Number -> Options -> String
+uppercase : String -> String
 ```
 
-## Background: composition
+or even
+
+```
+duration : Number -> Options{"skeleton"=String ...} -> String
+```
+
+However, this would be future work.
+The [function registry data model](https://github.com/unicode-org/message-format-wg/blob/main/spec/registry.md)
+attempts to do some of this, but does not define
+the structure of the values produced by functions.
+
+
+### More composition
+
+TODO
 
 Suggestion from Elango: allow _both_ kinds of composition? "operates-on-output" vs. "pipelines-input"
 
@@ -542,7 +643,366 @@ So my proposal would be that all the initial standard functions (:number, :datet
 
 ("switching functions" = switching between different functions)
 
-## Background: model implementations
+### Overriding options
+
+In MessageFormat, composition lends itself to multiple interpretations.
+
+```
+    .local $x = {$num :number maxFrac=2}
+    .local $y = {$x :number maxFrac=5}
+    {{$x} {$y}}
+```
+
+If the external input value of `$num` is "0.33333",
+what should this message format to?
+
+1. `0.33 0.33333`
+2. `0.33 0.33`
+
+If our model of function composition is as follows:
+1. Evaluate `$num` to a value and pass it to the `:number` function,
+   along with named options `{"maxFrac": "2"}`
+2. Bind `$x` to the result, which is an object `X`
+   encapsulating the following fields:
+     * The source value, `"0.33333"`
+     * The fully-evaluated options, `{"maxFrac": "2"}`
+     * The formatted result, a `FormattedNumber` object
+       representing the string `"0.33"`
+3. Evaluate `$y` to a value, which is `X`,
+   and pass it to the `:number` function,
+   along with named options `{"maxFrac": "5"}`
+4. Bind `$y` to the result, which is an object `Y`
+   encapsulating the following fields:
+     * The source value, `"0.33333"` (same as `X`'s source value)
+     * The fully-evaluated options, `{"maxFrac": "5"}`
+       (note: the original `maxFrac` option value has been deleted)
+     * The formatted result, a `FormattedNumber` object
+       representing the string `"0.33333"`
+
+then the formatted result is option (1).
+
+If on the other hand our model is:
+1. Evaluate `$num` to a value and pass it to the `:number` function,
+   along with named options `{"maxFrac": "2"}`
+2. Bind `$x` to the result, which is:
+     * The formatted result F, a `FormattedNumber` object
+       representing the string `"0.33"`
+3. Evaluate `$y` to a value, which is F,
+   and pass it to the `:number` function,
+   along with named options `{"maxFrac": "5"}`
+4. Inside the `:number` function, check the type
+   of the input, notice that it is already a
+   `FormattedNumber`, and return it as-is
+5. Bind `$y` to the result, which is F.
+
+then the formatted result is option (2).
+
+In terms of implementation, the result depends on
+what the nature is of the value that is bound to
+a local variable in the environment used in evaluation
+within the message formatter.
+
+The value could be a simple "formatted value" as in the second model,
+and analogously to MessageFormat 1.
+
+Or it could be a more structured value that captures
+both the "formatted value", and everything that was used to construct it,
+as in the first model.
+
+The third option...
+TODO: summarize this comment from Markus
+```
+More precisely, since we supposedly operate on (value-object, string-with-meta) pairs, I would expect something like this:
+
+    $num = 0.33333333333 turns into ({type=double 0.33333333333}, none) input to the first function
+    The first function ignores the string field, formats the double, and outputs $x = ({type=FixedDecimal 0.33}, "0.33")
+    The second function gets that, ignores the string field, formats the FixedDecimal, and outputs $y = ({type=FixedDecimal 0.33000}, "0.33000")
+
+With "FixedDecimal" I mean the ICU-internal, ICU4X-public representation of a decimal number with a defined set of digits before and after the decimal point. Rounding/truncation/padding applied. Somewhat similar to Java BigDecimal.
+```
+
+Although it's a different evaluation model, the third option is observably the same as the second one.
+
+orthogonal choices:
+* "string" named values vs. "structured" name values
+* "looking back" for the original value, vs. returning a different "source value"
+
+the choice of internal value influences the result!
+(Or put differently, the desired result constrains the choice of internal value.)
+
+Currently (2024-02-27), the spec leaves the behavior implementation-dependent.
+
+Markus's words: "the expectation that the second function operates on the output of the first".
+
+I don't know that it's meaningful to refer to "the expectation",
+but the spec should specify the behavior
+so that it's clear what the expectation is: to do what the spec says.
+
+but it's a useful framing:
+* "the second function operates on the output of the first"
+vs.
+* "the second function operates on the input of the first, plus 'hints' supplied by the first"
+
+TODO: another option is `0.33000`
+
+### Extracting a field / arbitrary computation
+
+TODO: summarize this (repeated?)
+
+```
+Another example: A function that takes a Person object and extracts/computes the person's age.
+
+    .local $age = {$person :getAge}
+    .local $y = {$age :duration skeleton=yM}
+    .local $z = {$y :uppercase}
+
+TODO: explained above
+
+I expect
+
+    Input: $person --> pair ({type=Person Markus Scherer 178cm 19690408}, none)
+    The getAge function takes this pair (asserting that the value is of type Person), and computes the age as now-birthday
+    Let's say it returns $age = ({type=duration 54y10mo}, none)
+    The duration function takes this $age and formats it; outputs something like $y = ({type=duration 54y10mo}, "54 Jahre und 10 Monate")
+    The uppercase function takes $y, ignores the value object, and formats=uppercases the string, possibly preserving metadata: $z = ({type=string [same as second field]}, "54 JAHRE UND 10 MONATE")
+
+Note:
+
+    Functions need to be able to accept a pair that has no string-with-meta -- since that's often the real input.
+    Functions need to be able to return a value object without string-with-meta. (getAge)
+    Functions may ignore the input value object. (uppercase)
+    Functions may return a pair with a value object of a different type than the input pair's value object.
+    Even if it's the same type, the value may differ. (e.g., number taking & returning a FixedDecimal)
+
+The function registry needs to be explicit for each function about what acceptable inputs are (including types of value objects), what the outputs are (including value type), in addition to what happens in between. Otherwise, implementations will handle the details wildly differently, and interoperability suffers.
+```
+
+In short: this isn't about preserving options, but rather "what is the internal representation"; types; and which functions compose with each other
+
+Mark's comment on this:
+"Now, we could definitely add mutating options, and we could add ‘extracting’ options. But I think we need to be very clear which are which. For example, we could have functions that take one datatype and extract a part of the input, as in your example of plucking a timestamp (birth date, I presume) from an input object representing Person information.
+
+i.e. explicitly declaring what a function does / what options mean
+
+subsequent email from Mark:
+
+```
+What we really have also hand-waved is how to function type X can extract some useful — and expected — value from function type Y
+
+Suppose we have a PersonName datatype input passed to a message. (Cf. https://www.unicode.org/reports/tr35/tr35-personNames.html#person-name-attributes)
+
+.input {$name :u:personname length=long formality=informal}
+
+Then we write:
+
+.local $date = {$name :u:datetime skeleton=MMMyy}
+
+What to do about the value? I think the best that we could do is to specify in the registry which function's variables a given other function can read. And where it doesn't make any sense, it is simply an error. We could conceivably do the same for another function's options, though that starts to get complicated. I don't think a string binding helps with communcation, not unless — again — the second function understands the details of the first's.
+
+```
+
+(n.b. he's using "variables" in the weird way here)
+
+### Offset
+
+Mark (not sure where this came from):
+
+```
+BTW, I did implement offset=x in my mockup, as a test. MockMessageFormat.java
+
+It turned out to be fairly easy. The original value needs to be retained for selecting literals (0, 1, ...), while I added an offsetted value for formatting and for selecting plural or ordinal categories. For composition, one would have to make a choice of which value to pass on to a successive function, although in this instance I think such composition would be of limited use in practice (and could be dangerous). Example:
+
+match {$count :number :offset=1}{$bookTitle}
+0 {{You have no books}}
+1 {{You have {$bookTitle}}}
+2 {{You have {$bookTitle} and one other book}}
+* {{You have  {$bookTitle} and {$count} other books}}
+
+When we format $count in the * line, it clearly needs to use the offsetValue. So far, so good. That means if you want to do something special, you need to have keep another variable
+
+.locale $countOther {$count : number}
+match {$countOther :number :offset=1}{$bookTitle}
+0 {{You have no books}}
+1 {{You have {$count} book, {$bookTitle}}}
+2 {{You have {$bookTitle} and one other book; for a total of {$count} books}}
+* {{You have {$bookTitle} and {$countOther} other books; for a total of {$count} books}}
+
+We really want to steer users away from the danger of changing the format in the submessage to be different than the selection.
+
+match {$count :number minFractionDigits=0}
+one {{The library has an average of {$count minFractionDigits=1} book per person}}
+* {{The library has an average of {$count} books per person}}
+
+That can result in the malformed message (for English, but similar cases happen in other languages): 
+
+The library has an average of 1.0 book per person
+```
+
+## Requirements
+
+_What properties does the solution have to manifest to enable the use-cases above?_
+
+- Guarantee interpretation 2 in the spec
+
+* composition (in a way that makes sense)
+
+which implies
+* preservation of options
+* preservation of original operand value when appropriate
+* passing through a new operand value _and_ options when appropriate, as with functions that abstract fields
+
+
+## Constraints
+
+_What prior decisions and existing conditions limit the possible design?_
+
+prior decision: using the same "resolved value" definition everywhere
+* However, I think it still works, just with "resolved value" = "annotated value with metadata"
+
+difficulty of matching a more-specific "resolved value" design (in the semantics)
+with the concrete function interface, in an implementation-language-neutral way
+
+## Proposed design
+
+_Describe the proposed solution. Consider syntax, formatting, errors, registry, tooling, interchange._
+
+We show how we can evolve a proposed design starting from an "obvious" solution,
+working towards one that meets the requirements.
+
+Separating:
+* "there should be a richer 'resolved value' type, & here's how that accompanies the function interface
+
+from
+
+the specifics (in #645)
+
+from
+
+type system / registry / how functions would actually declare the structures of their options/result types
+(which isn't necessary! for now, functions can error out whenever they want)
+
+### Implementation: type signatures: formatters, selectors
+
+(partially based on feedback from Markus Scherer)
+
+The following uses an abstract notation for type signatures.
+
+In MessageFormat 1, conceptually a formatter had the type:
+
+```
+Object -> FormattedValue
+```
+
+(Java), or
+
+```
+Formattable -> FormattedValue
+```
+
+(C++)
+
+Where a `FormattedValue` is a string with metadata.
+
+In MessageFormat 2, the language of "formatted values" is richer.
+Formatters can return arbitrary objects, so
+the MessageFormat 2 equivalent of a `FormattedValue`
+contains something with more structure.
+
+In defining an interface for custom functions,
+an implementer might initially choose a type signature like:
+
+```
+Formattable -> FormattedValue
+```
+
+where `Formattable` is a type that can express
+the types that literals and the values of
+external input variables might have.
+
+Note that the simplest interpretation of this set of type signatures
+forces interpretation 1 (from the "Semantics: named values" section).
+
+Question 1: how does the formatter
+coerces a `FormattedValue` to a resolved value?
+
+Incorporating options, the type might look like:
+
+```
+Formattable -> Map<String, Formattable> -> FormattedValue
+```
+
+where `Options` is a map from strings to `Formattable`s.
+
+Question 2: how does the formatter coerce
+a resolved value to a `Formattable`?
+
+Given the semantics for selection,
+the type signature for selectors might look like:
+
+```
+Formattable -> Options -> [Key] -> [Key]
+```
+
+(where `[Key]` refers to a list of keys.)
+
+(The implementation-specific `MatchSelectorKeys()` method
+"...takes as arguments a resolved selector value `rv`"
+-- ["Resolve Preferences"](https://github.com/unicode-org/message-format-wg/blob/main/spec/formatting.md#resolve-preferences))
+
+The same question arises: how is a resolved value
+coerced to a `Formattable`?
+
+(A single function that supports both formatting and selection
+would map to two different implementations with the same name,
+given the difference between the type signatures.)
+
+Question 3: what are options bound to in the option map?
+
+> If the option's right-hand side successfully resolves to a value, bind the identifier of the option to the resolved value in the mapping.
+([Option Resolution](https://github.com/unicode-org/message-format-wg/blob/main/spec/formatting.md#option-resolution))
+
+This text suggests that the range of the option map,
+the argument type of formatters,
+and the argument type of selectors should all be the same type.
+
+There are two possibilities:
+
+1. The formatter coerces between resolved values and `Formattable` values
+(valid inputs to functions).
+It must also coerce `FormattedValue`s to resolved values.
+The question is how to do that without loss of information
+that is necessary for a future function call.
+This doesn't match how the spec is written,
+given the text "If the expression includes an operand, its resolved value."
+In this option, instead of "resolved value",
+it would be something like:
+"If the expression includes an operand, the result of coercing its resolved value
+to T", where T is the implementation's argument type for functions.
+2. Rather than taking `Formattables` or returning `FormattedValue`s,
+a single type, isomorphic to the formatter's internal "resolved value" type,
+is both the argument type and return type of a function.
+
+Note that these questions do not arise only
+in an implementation in a typed language,
+since an implementer working in an unityped language
+might still choose to use a different structure
+for internal "resolved values" and for
+function argument and result types,
+and conversion that changes the representation
+of the values might be necessary.
+
+Under interpretation 2:
+
+> a function like :number produces a composite value specific to that function, which we can think of as a [numberDatatype, numberOptions] pair.`
+(Mark)
+
+see implementation notes below... "composite value specific to that function" _or_ a _generalized_ composite value
+
+
+> TODO: I think Possibility 1 doesn't work, because the formatter doesn't "know" what the base value should be.
+> Consider example B1.
+> In addition, some options might be "dropped" and the details are specific to each function.
+
 
 ### Model function registry interface
 
@@ -820,22 +1280,11 @@ Elango:
 
 Mihai also feels that interpreting the right-hand side expression of a .local as truly behaving like functions -- which means interpreting them as returning values -- has more benefit than the idea of interpreting them as representing the set of options passed to a function invocation. The use case here is that we can represent composition of functions, which isn't possible in MF1, but could be useful to support operations for inflected languages, etc. The obvious use case for interpreting a .local as a set of options is concision -- saving the user from repeating substrings across different .local declarations, but this is something that copy+paste trivially solves -- it doesn't confer new functionality that the user didn't already have."
 
-## Use-Cases
 
-_What use-cases do we see? Ideally, quote concrete examples._
+### Miscellaneous
 
-## Requirements
 
-_What properties does the solution have to manifest to enable the use-cases above?_
-
-## Constraints
-
-_What prior decisions and existing conditions limit the possible design?_
-
-## Proposed Design
-
-_Describe the proposed solution. Consider syntax, formatting, errors, registry, tooling, interchange._
-
+TODO
 
 following Mark's suggestion:
 
@@ -858,7 +1307,7 @@ I agree; but given the model of the first being a pair, it doesn’t mean that t
 Building on this: not just a pair. `FormattedPlaceholder` is conceptually a tuple, though
 
 
-## Type system?
+### Type system?
 
 Mark:
 "I  am afraid if we are going "typeless", then the issue becomes much trickier on the implementation side, and less predictable for clients. It kinda forces the intermediate value to be a stringified literal as the least common denominator, which will have various implementation costs (and require some pretty careful specification).
@@ -915,3 +1364,7 @@ also Rich:
 "We see that in some of the discussion of numeric values.  Is setting maxFractionDigits simply specifying the output format, or is it mutating the number?  And how does this apply to, say, setting the sign style or grouping interval, which really CAN’T mutate the underlying number?  I’d argue we shouldn’t be trying to format and calculate with the same “function.”
 
 I’m thinking maybe for now we focus on the formatting and selecting and talk about performing calculations later."
+
+## Acknowledgments
+
+This document incorporates comments and suggestions from Elango Cheran, Mark Davis, and Markus Scherer.
