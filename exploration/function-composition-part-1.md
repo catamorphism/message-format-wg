@@ -8,9 +8,15 @@ Status: **Proposed**
 		<dt>Contributors</dt>
 		<dd>@catamorphism (also see Acknowledgments)</dd>
 		<dt>First proposed</dt>
+<<<<<<< HEAD
 		<dd>2024-03-26</dd>
 		<dt>Pull Requests</dt>
 		<dd>#753</dd>
+=======
+		<dd>2024-03-xx</dd>
+		<dt>Pull Requests</dt>
+		<dd>#000</dd>
+>>>>>>> 8c6f162 (WIP)
 	</dl>
 </details>
 
@@ -36,6 +42,7 @@ the meaning of function composition is ambiguous.
 An obstacle to disambiguating its meaning
 is the absence of a definition of "resolved value".
 
+<<<<<<< HEAD
 A necessary but not sufficient condition for specifying
 the meaning of function composition
 is to define the structure
@@ -51,6 +58,12 @@ look like.
 
 This design document primarily attempts to address
 the constraints that a definition of "resolved value" must satisfy.
+=======
+So we must address both problems together:
+
+* Problem 1: Define what it means for functions to compose with each other.
+* Problem 2: Define the constraints that a definition of "resolved value" must satisfy.
+>>>>>>> 8c6f162 (WIP)
 
 The spec currently leaves the term "resolved value"
 undefined.
@@ -63,7 +76,11 @@ is to begin making those constraints explicit
 so that the implementor can consult documentation
 rather than inferring requirements.
 
+<<<<<<< HEAD
 Defining resolved values implies several subsidiary goals,
+=======
+Problem 2 implies several subsidiary goals,
+>>>>>>> 8c6f162 (WIP)
 as there are several things that can be done with resolved values
 at runtime:
 
@@ -147,11 +164,14 @@ Part of the process of discussing this design document
 includes deciding on whether any of them should
 be explicitly disallowed.
 
+<<<<<<< HEAD
 Several of the following examples use the `:number` built-in function.
 However, the issues illustrated in the examples are general.
 Most of the issues identified with `:number` also apply
 to **any** function with multiple named options.
 
+=======
+>>>>>>> 8c6f162 (WIP)
 _This document includes examples contributed by Markus Scherer and Elango Cheran_
 
 ### Composition
@@ -251,13 +271,21 @@ Should $y be formatted as +98765 or 98765?
 
 These examples raise the question
 of whether functions return values
+<<<<<<< HEAD
 that preserve the input option names and values
+=======
+that encode the option names and values
+>>>>>>> 8c6f162 (WIP)
 that were passed in to the function.
 
 While some use cases don't work well
 (or at least work surprisingly)
+<<<<<<< HEAD
 if options are **not** preserved
 in function outputs,
+=======
+if options are **not** encoded in named values,
+>>>>>>> 8c6f162 (WIP)
 defining what it means to compose options
 is not straightforward.
 
@@ -334,8 +362,11 @@ This suggests a representation for named values
 that allows functions to choose whether to
 inspect the "formatted result", the "argument" and options,
 or both.
+<<<<<<< HEAD
 Or, it may also suggest that we consider 
 whether we allow composition at all when the functions differ.
+=======
+>>>>>>> 8c6f162 (WIP)
 
 ## Background
 
@@ -432,6 +463,7 @@ when discussing the function interface.
 However, in some implementations, the same questions arise
 for built-in functions.
 
+<<<<<<< HEAD
 ### Formattable and formatted values
 
 In implementing the custom function registry,
@@ -464,6 +496,8 @@ When the following text refers to `Formattable` or
 `FormattedValue`, it should be taken to refer to
 abstract "input" and "output" types.
 
+=======
+>>>>>>> 8c6f162 (WIP)
 ### Ambiguous examples
 
 Returning to Example Y1, consider two possible models
@@ -473,14 +507,21 @@ of the runtime behavior of function composition.
 
 1. Evaluate `$num` to a value and pass it to the `:number` function,
    along with named options `{"maxFrac": "2"}`
+<<<<<<< HEAD
 2. Let `X` be the result of the function. `X` is
    an object
+=======
+2. Bind `$x` to the result, which is an object `X`
+>>>>>>> 8c6f162 (WIP)
    encapsulating the following fields:
      * The source value, `"0.33333"`
      * The fully-evaluated options, `{"maxFrac": "2"}`
      * The formatted result, a `FormattedNumber` object
        representing the string `"0.33"`
+<<<<<<< HEAD
 2. Bind the name `$x` to the value `X`.
+=======
+>>>>>>> 8c6f162 (WIP)
 3. Evaluate `$y` to a value, which is `X`,
    and pass it to the `:number` function,
    along with named options `{"maxFrac": "5"}`
@@ -498,10 +539,16 @@ then the formatted result is "0.33 0.33333".
 
 1. Evaluate `$num` to a value and pass it to the `:number` function,
    along with named options `{"maxFrac": "2"}`
+<<<<<<< HEAD
 2. Let `F` be the result of the function. `F` is
    a `FormattedNumber` object
    representing the string `"0.33"`
 2. Bind the name `$x` to the value `F`.
+=======
+2. Bind `$x` to the result, which is:
+     * The formatted result F, a `FormattedNumber` object
+       representing the string `"0.33"`
+>>>>>>> 8c6f162 (WIP)
 3. Evaluate `$y` to a value, which is F,
    and pass it to the `:number` function,
    along with named options `{"maxFrac": "5"}`
@@ -779,11 +826,18 @@ with incorrect uses of functions being resolution errors.
 
 ### Summarizing use cases
 
+<<<<<<< HEAD
 There seem to be several areas of ambiguity:
 
 * Are named values essentially `FormattedValue`s,
 or do they have additional structure that is used
 internally in the formatter? (Model 1 vs. Model 2)
+=======
+There seem to be two areas of ambiguity:
+
+* Are named values essentially strings with metadata,
+or are they structured? (Model 1 vs. Model 2)
+>>>>>>> 8c6f162 (WIP)
 * In Model 2, some functions "look back" for the original value,
 (like `number`)
 while others return a new "source value"
@@ -801,6 +855,11 @@ The question is how to craft the spec in a way that is consistent with expectati
 
 ## Requirements
 
+<<<<<<< HEAD
+=======
+_What properties does the solution have to manifest to enable the use-cases above?_
+
+>>>>>>> 8c6f162 (WIP)
 In the rest of this document, we assume some version of Model 2.
 However, if Model 1 is more desired, the questions arise of how to
 forbid compositions of functions that would do surprising things
@@ -830,6 +889,7 @@ when functions can compose with each other.
 
 Other requirements:
 
+<<<<<<< HEAD
 ### Identify a set of use cases that must be supported
 
 Some use cases for composition are given in this document,
@@ -844,6 +904,8 @@ _not_ to support any of these use cases
 (that is, a solution that heavily restricts function composition
 rather than giving it meaning).
 
+=======
+>>>>>>> 8c6f162 (WIP)
 ### Avoid over-constraining implementations
 
 An implementation is free to use any types
@@ -859,6 +921,7 @@ clear enough so that implementors can
 make a well-informed decision
 on what these types and operations should be.
 
+<<<<<<< HEAD
 The proposed solution might involve normative changes to the spec,
 or it might be sufficient to define a set of examples
 and how they should work.
@@ -875,6 +938,8 @@ and if user feedback suggests such use cases are rare in practice,
 it might be more desirable to rule out ambiguous examples
 by means of syntactic restrictions and/or runtime errors.
 
+=======
+>>>>>>> 8c6f162 (WIP)
 ## Constraints
 
 _What prior decisions and existing conditions limit the possible design?_
@@ -896,6 +961,7 @@ resembles the idea of specifying a type system for functions.
 Specifying rules for function composition, while also remaining typeless,
 seems difficult and potentially unpredictable.
 
+<<<<<<< HEAD
 ## Prior work
 
 In a previous iteration of the spec,
@@ -965,12 +1031,15 @@ Hence, revisiting the extensibility of the runtime model
 now that the data model is settled
 may result in a more workable solution.
 
+=======
+>>>>>>> 8c6f162 (WIP)
 ## Proposed design and alternatives considered
 
 These sections are omitted from this document and will be added in
 a future follow-up document,
 given the length so far and need to agree on a common vocabulary.
 
+<<<<<<< HEAD
 We expect that any proposed design
 would fall into one of the following categories:
 
@@ -986,6 +1055,8 @@ are used.
 1. Restrict function composition for built-in functions
 (in order to prevent unintuitive behavior).
 
+=======
+>>>>>>> 8c6f162 (WIP)
 ## Acknowledgments
 
 This document incorporates comments and suggestions from Elango Cheran, Mark Davis, and Markus Scherer.
